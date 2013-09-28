@@ -1,0 +1,7 @@
+*.py[co]
+bin/*
+lib/*
+include/*
+local/*
+src/*
+build/*
