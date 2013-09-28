@@ -43,9 +43,7 @@ class EtcdClient(object):
             version=self.API_VERSION,
             path=path,
         )
-        d = self.http_client.request(method, url, params=params)
-        d.addCallback(self._decode_response)
-        return d
+        return self.http_client.request(method, url, params=params)
 
     def set(self, key, value, prev_value=None, ttl=None):
         path = '/keys/{key}'.format(key=key)
@@ -57,7 +55,8 @@ class EtcdClient(object):
         if prev_value is not None:
             params['prevValue'] = prev_value
 
-        return self._request('POST', path, params=params, leader=True)
+        d = self._request('POST', path, params=params, leader=True)
+        return d.addCallback(self._decode_response)
 
     def watch(self, key, index=None):
         path = '/watch/{key}'.format(key=key)
@@ -66,8 +65,10 @@ class EtcdClient(object):
         if index is not None:
             params['index'] = index
 
-        return self._request('GET', path)
+        d = self._request('GET', path)
+        return d.addCallback(self._decode_response)
 
     def delete(self, key):
         path = '/keys/{key}'.format(key=key)
-        return self._request('DELETE', path)
+        d = self._request('DELETE', path)
+        return d.addCallback(self._decode_response)
