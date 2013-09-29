@@ -16,10 +16,24 @@ limitations under the License.
 
 import random
 
+from dateutil.parser import parse as parse_datetime
 from twisted.python import log
 
 from treq import json_content
 from treq.client import HTTPClient
+
+
+class EtcdResponse(object):
+    def __init__(self, **kwargs):
+        self.action = kwargs.get('action')
+        self.key = kwargs.get('key')
+        self.value = kwargs.get('value')
+        self.index = kwargs.get('index')
+        self.new_key = kwargs.get('newKey')
+        self.prev_value = kwargs.get('prevValue')
+        self.expiration = kwargs.get('expiration')
+        if self.expiration:
+            self.expiration = parse_datetime(self.expiration)
 
 
 class EtcdClient(object):
@@ -35,7 +49,7 @@ class EtcdClient(object):
         return random.sample(self.nodes, 1)[0]
 
     def _decode_response(self, response):
-        return json_content(response)
+        return json_content(response).addCallback(lambda obj: EtcdResponse(**obj))
 
     def _log_failure(failure):
         log.err(failure)

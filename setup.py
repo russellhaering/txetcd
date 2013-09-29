@@ -20,7 +20,10 @@ setup(
     name='txetcd',
     version='0.0.1',
     packages=find_packages(),
-    install_requires=['treq >= 12.1.0'],
+    install_requires=[
+        'treq >= 12.1.0',
+        'python-dateutil >= 2.1',
+    ],
     author='Russell Haering',
     author_email='russellhaering@gmail.com',
     description='A Twisted client for etcd: https://github.com/coreos/etcd',
