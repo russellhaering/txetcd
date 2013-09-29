@@ -36,6 +36,14 @@ class EtcdResponse(object):
             self.expiration = parse_datetime(self.expiration)
 
 
+class EtcdError(Exception):
+    def __init__(self, **kwargs):
+        super(EtcdError, self).__init__(kwargs)
+        self.code = kwargs.get('errorCode')
+        self.message = kwargs.get('message')
+        self.cause = kwargs.get('cause')
+
+
 class EtcdClient(object):
     API_VERSION = 'v1'
 
@@ -49,7 +57,13 @@ class EtcdClient(object):
         return random.sample(self.nodes, 1)[0]
 
     def _decode_response(self, response):
-        return json_content(response).addCallback(lambda obj: EtcdResponse(**obj))
+        return json_content(response).addCallback(self._construct_response_object)
+
+    def _construct_response_object(self, obj):
+        if 'errorCode' in obj:
+            raise EtcdError(**obj)
+        else:
+            return EtcdResponse(**obj)
 
     def _log_failure(failure):
         log.err(failure)
