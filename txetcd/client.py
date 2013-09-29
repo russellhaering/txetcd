@@ -62,6 +62,8 @@ class EtcdClient(object):
     def _construct_response_object(self, obj):
         if 'errorCode' in obj:
             raise EtcdError(**obj)
+        elif isinstance(obj, list):
+            return [EtcdResponse(**item) for item in obj]
         else:
             return EtcdResponse(**obj)
 
