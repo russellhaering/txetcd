@@ -5,3 +5,4 @@ include/*
 local/*
 src/*
 build/*
+docs/_build/*
