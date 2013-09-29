@@ -68,7 +68,7 @@ class EtcdClient(object):
         d = self._request('GET', path)
         return d.addCallback(self._decode_response)
 
-    def delete(self, key):
+    def delete(self, key, leader=True):
         path = '/keys/{key}'.format(key=key)
         d = self._request('DELETE', path)
         return d.addCallback(self._decode_response)
