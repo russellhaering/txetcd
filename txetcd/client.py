@@ -51,7 +51,7 @@ class EtcdClient(object):
         self.nodes = set(seeds)
         self.http_client = HTTPClient.with_config()
 
-    def _get_node(self, leader):
+    def _get_node(self, prefer_leader=False):
         # TODO: discover the rest of the cluster
         # TODO: cache the leader
         return random.sample(self.nodes, 1)[0]
@@ -71,8 +71,8 @@ class EtcdClient(object):
         log.err(failure)
         return failure
 
-    def _request(self, method, path, params=None, leader=False):
-        node = self._get_node(leader)
+    def _request(self, method, path, params=None, prefer_leader=False):
+        node = self._get_node(prefer_leader=prefer_leader)
         url = 'http://{host}:{port}/{version}{path}'.format(
             host=node[0],
             port=node[1],
@@ -91,12 +91,12 @@ class EtcdClient(object):
         if prev_value is not None:
             params['prevValue'] = prev_value
 
-        d = self._request('POST', path, params=params, leader=True)
+        d = self._request('POST', path, params=params, prefer_leader=True)
         return d.addCallback(self._decode_response)
 
     def delete(self, key):
         path = '/keys/{key}'.format(key=key)
-        d = self._request('DELETE', path, leader=True)
+        d = self._request('DELETE', path, prefer_leader=True)
         return d.addCallback(self._decode_response)
 
     def get(self, key):
