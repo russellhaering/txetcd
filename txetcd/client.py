@@ -16,6 +16,8 @@ limitations under the License.
 
 import random
 
+from twisted.python import log
+
 from treq import json_content
 from treq.client import HTTPClient
 
@@ -35,6 +37,10 @@ class EtcdClient(object):
     def _decode_response(self, response):
         return json_content(response)
 
+    def _log_failure(failure):
+        log.err(failure)
+        return failure
+
     def _request(self, method, path, params=None, leader=False):
         node = self._get_node(leader)
         url = 'http://{host}:{port}/{version}{path}'.format(
@@ -43,7 +49,7 @@ class EtcdClient(object):
             version=self.API_VERSION,
             path=path,
         )
-        return self.http_client.request(method, url, params=params)
+        return self.http_client.request(method, url, params=params).addErrback(self._log_failure)
 
     def set(self, key, value, prev_value=None, ttl=None):
         path = '/keys/{key}'.format(key=key)
