@@ -70,7 +70,7 @@ class EtcdClient(object):
         return d.addCallback(self._decode_response)
 
     def get(self, key):
-        path = '/kes/{key}'.format(key=key)
+        path = '/keys/{key}'.format(key=key)
         d = self._request('GET', path)
         return d.addCallback(self._decode_response)
 
