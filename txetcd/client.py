@@ -60,8 +60,13 @@ class EtcdClient(object):
 
     def delete(self, key):
         path = '/keys/{key}'.format(key=key)
-        d = self._request('DELETE', path)
-        return d.addCallback(self._decode_response, leader=True)
+        d = self._request('DELETE', path, leader=True)
+        return d.addCallback(self._decode_response)
+
+    def get(self, key):
+        path = '/kes/{key}'.format(key=key)
+        d = self._request('GET', path)
+        return d.addCallback(self._decode_response)
 
     def watch(self, key, index=None):
         path = '/watch/{key}'.format(key=key)
