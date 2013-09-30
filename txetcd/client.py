@@ -106,11 +106,11 @@ class EtcdClient(object):
 
     def watch(self, key, index=None):
         path = '/watch/{key}'.format(key=key)
-        params = None
+        params = {}
 
         if index is not None:
             params['index'] = index
 
-        d = self._request('GET', path)
+        d = self._request('GET', path, params=params)
         return d.addCallback(self._decode_response)
 
