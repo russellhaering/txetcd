@@ -14,4 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from txetcd.client import EtcdClient
+from txetcd.client import EtcdClient, EtcdError, EtcdResponse
