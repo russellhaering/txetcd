@@ -3,15 +3,13 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to txetcd's documentation!
-==================================
+txetcd: Twisted Python client for etcd
+======================================
 
-Contents:
-
-.. toctree::
-   :maxdepth: 2
-
-
+txetcd is a Twisted Python client for etcd, a consistent and highly available
+distributed datastore. txetcd exposes a low-level client API that maps closely
+to that of etcd, as well as higher-level abstractions around common usage
+patterns.
 
 Indices and tables
 ==================
