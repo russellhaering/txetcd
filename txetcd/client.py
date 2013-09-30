@@ -67,7 +67,7 @@ class EtcdClient(object):
         else:
             return EtcdResponse(**obj)
 
-    def _log_failure(failure):
+    def _log_failure(self, failure):
         log.err(failure)
         return failure
 
