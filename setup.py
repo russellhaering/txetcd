@@ -18,7 +18,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='txetcd',
-    version='0.0.1',
+    version='0.0.2',
     packages=find_packages(),
     install_requires=[
         'treq >= 0.2',
