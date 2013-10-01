@@ -61,7 +61,10 @@ class EtcdTaskQueue(object):
         return self.client.get(self.base_path)
 
     def _get_task_id(self, task_node):
-        return task_node.key.lstrip('/{base_path}/'.format(base_path=self.base_path))
+        prefix = '/{base_path}/'.format(base_path=self.base_path)
+        if not task_node.key.startswith(prefix):
+            raise RuntimeError('Unexpected task key', task_node.key)
+        return task_node.key[len(prefix):]
 
     def _find_untaken_task(self, task_nodes):
         for task_node in task_nodes:
