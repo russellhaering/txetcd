@@ -15,6 +15,7 @@ limitations under the License.
 """
 
 import random
+from urllib import urlencode
 
 from dateutil.parser import parse as parse_datetime
 from twisted.python import log
@@ -45,7 +46,7 @@ class EtcdError(Exception):
 
 
 class EtcdClient(object):
-    API_VERSION = 'v1'
+    API_VERSION = 'v2'
 
     def __init__(self, seeds=[('localhost', 4001)]):
         self.nodes = set(seeds)
@@ -71,7 +72,7 @@ class EtcdClient(object):
         log.err(failure)
         return failure
 
-    def _request(self, method, path, params=None, prefer_leader=False):
+    def _request(self, method, path, params=None, data=None, prefer_leader=False):
         node = self._get_node(prefer_leader=prefer_leader)
         url = 'http://{host}:{port}/{version}{path}'.format(
             host=node[0],
@@ -79,38 +80,73 @@ class EtcdClient(object):
             version=self.API_VERSION,
             path=path,
         )
-        return self.http_client.request(method, url, params=params).addErrback(self._log_failure)
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+        kwargs = {}
 
-    def set(self, key, value, prev_value=None, ttl=None):
-        path = '/keys/{key}'.format(key=key)
-        params = {'value': value}
+        if data:
+            kwargs['data'] = urlencode(data)
 
-        if ttl is not None:
-            params['ttl'] = ttl
+        if params:
+            kwargs['params'] = params
 
-        if prev_value is not None:
-            params['prevValue'] = prev_value
+        d = self.http_client.request(method, url, headers=headers, **kwargs)
+        d.addErrback(self._log_failure)
+        return d
 
+    def _validate_key(self, key):
+        if not key.startswith('/'):
+            raise RuntimeError('keys must start with /')
+
+    def _build_params(self, params, method_kwargs, param_map):
+        for key in param_map.iterkeys():
+            if key in method_kwargs:
+                params[param_map[key]] = method_kwargs[key]
+
+        return params
+
+    def create(self, key, value, **kwargs):
+        self._validate_key(key)
+        path = '/keys{key}'.format(key=key)
+        params = self._build_params({'value': value}, kwargs, {
+            'ttl': 'ttl',
+        })
         d = self._request('POST', path, params=params, prefer_leader=True)
-        return d.addCallback(self._decode_response)
+        d.addCallback(self._decode_response)
+        return d
+
+    def set(self, key, **kwargs):
+        self._validate_key(key)
+        path = '/keys{key}'.format(key=key)
+        data = self._build_params({}, kwargs, {
+            'ttl': 'ttl',
+            'value': 'value',
+            'prev_index': 'prevIndex',
+            'prev_value': 'prevValue',
+            'prev_exists': 'prevExists',
+        })
+
+        d = self._request('PUT', path, data=data, prefer_leader=True)
+        d.addCallback(self._decode_response)
+        return d
 
     def delete(self, key):
-        path = '/keys/{key}'.format(key=key)
+        self._validate_key(key)
+        path = '/keys{key}'.format(key=key)
         d = self._request('DELETE', path, prefer_leader=True)
-        return d.addCallback(self._decode_response)
+        d.addCallback(self._decode_response)
+        return d
 
-    def get(self, key):
-        path = '/keys/{key}'.format(key=key)
-        d = self._request('GET', path)
-        return d.addCallback(self._decode_response)
-
-    def watch(self, key, index=None):
-        path = '/watch/{key}'.format(key=key)
-        params = {}
-
-        if index is not None:
-            params['index'] = index
+    def get(self, key, **kwargs):
+        self._validate_key(key)
+        path = '/keys{key}'.format(key=key)
+        params = self._build_params({}, kwargs, {
+            'sorted': 'sorted',
+            'recursive': 'recursive',
+            'consistent': 'consistent',
+            'wait': 'wait',
+            'wait_index': 'waitIndex',
+        })
 
         d = self._request('GET', path, params=params)
-        return d.addCallback(self._decode_response)
-
+        d.addCallback(self._decode_response)
+        return d
