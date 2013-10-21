@@ -36,6 +36,12 @@ class EtcdServerError(EtcdError):
         self.cause = kwargs.get('cause')
 
 
+class EtcdResponse(object):
+    def __init__(self, index, node):
+        self.index = index
+        self.node = node
+
+
 class EtcdNode(object):
     directory = False
 
@@ -90,7 +96,8 @@ class EtcdClient(object):
     def _construct_response_object(self, obj):
         if 'errorCode' in obj:
             raise EtcdError(**obj)
-        return EtcdNode.from_response(**obj)
+
+        return EtcdResponse(obj['index'], EtcdNode.from_response(**obj))
 
     def _log_failure(self, failure):
         log.err(failure)
