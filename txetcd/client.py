@@ -96,6 +96,15 @@ class EtcdClient(object):
         log.err(failure)
         return failure
 
+    def _format_param_value(self, value):
+        if isinstance(value, bool):
+            if value:
+                return 'true'
+            else:
+                return 'false'
+        else:
+            return value
+
     def _request(self, method, path, params=None, data=None, prefer_leader=False):
         node = self._get_node(prefer_leader=prefer_leader)
         url = 'http://{host}:{port}/{version}{path}'.format(
@@ -111,7 +120,7 @@ class EtcdClient(object):
             kwargs['data'] = urlencode(data)
 
         if params:
-            kwargs['params'] = params
+            kwargs['params'] = {key:self._format_param_value(value) for key, value in params.iteritems()}
 
         d = self.http_client.request(method, url, headers=headers, **kwargs)
         d.addErrback(self._log_failure)
