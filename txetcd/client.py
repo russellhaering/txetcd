@@ -24,25 +24,52 @@ from treq import json_content
 from treq.client import HTTPClient
 
 
-class EtcdResponse(object):
-    def __init__(self, **kwargs):
-        self.action = kwargs.get('action')
-        self.key = kwargs.get('key')
-        self.value = kwargs.get('value')
-        self.index = kwargs.get('index')
-        self.new_key = kwargs.get('newKey')
-        self.prev_value = kwargs.get('prevValue')
-        self.expiration = kwargs.get('expiration')
-        if self.expiration:
-            self.expiration = parse_datetime(self.expiration)
-
-
 class EtcdError(Exception):
+    pass
+
+
+class EtcdServerError(EtcdError):
     def __init__(self, **kwargs):
-        super(EtcdError, self).__init__(kwargs)
+        super(EtcdServerError, self).__init__(kwargs)
         self.code = kwargs.get('errorCode')
         self.message = kwargs.get('message')
         self.cause = kwargs.get('cause')
+
+
+class EtcdNode(object):
+    directory = False
+
+    def __init__(self, **kwargs):
+        self.key = kwargs.get('key')
+
+        if 'expiration' in kwargs:
+            self.expiration = parse_datetime(kwargs['expiration'])
+        else:
+            self.expiration = None
+
+    @staticmethod
+    def from_response(**kwargs):
+        if kwargs.get('dir', False):
+            return EtcdDirectory(**kwargs)
+        else:
+            return EtcdFile(**kwargs)
+
+
+class EtcdFile(EtcdNode):
+    def __init__(self, **kwargs):
+        super(EtcdFile, self).__init__(**kwargs)
+        self.value = kwargs.get('value')
+
+
+class EtcdDirectory(EtcdNode):
+    directory = True
+
+    def __init__(self, **kwargs):
+        super(EtcdDirectory, self).__init__(**kwargs)
+        if 'kvs' in kwargs:
+            self.children = [EtcdNode.from_response(**obj) for obj in kwargs['kvs']]
+        else:
+            self.children = None
 
 
 class EtcdClient(object):
@@ -63,10 +90,7 @@ class EtcdClient(object):
     def _construct_response_object(self, obj):
         if 'errorCode' in obj:
             raise EtcdError(**obj)
-        elif isinstance(obj, list):
-            return [EtcdResponse(**item) for item in obj]
-        else:
-            return EtcdResponse(**obj)
+        return EtcdNode.from_response(**obj)
 
     def _log_failure(self, failure):
         log.err(failure)
