@@ -140,10 +140,10 @@ class EtcdClient(object):
     def create(self, key, value, **kwargs):
         self._validate_key(key)
         path = '/keys{key}'.format(key=key)
-        params = self._build_params({'value': value}, kwargs, {
+        data = self._build_params({'value': value}, kwargs, {
             'ttl': 'ttl',
         })
-        d = self._request('POST', path, params=params, prefer_leader=True)
+        d = self._request('POST', path, data=data, prefer_leader=True)
         d.addCallback(self._decode_response)
         return d
 
