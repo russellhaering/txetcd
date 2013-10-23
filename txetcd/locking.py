@@ -22,6 +22,13 @@ from twisted.python import log
 from txetcd.client import EtcdError
 
 
+class EtcdLock(object):
+    def __init__(self, path, id):
+        self.path = path
+        self.id = id
+        self.full_path = path + '/' + str(id)
+
+
 class EtcdLockManager(object):
     """
     An etcd-backed lock manager.
