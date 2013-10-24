@@ -26,7 +26,7 @@ class EtcdLock(object):
     def __init__(self, base_path, id, ttl):
         self.base_path = base_path
         self.id = id
-        self.full_path = path + '/' + str(id)
+        self.full_path = base_path + '/' + str(id)
         self.ttl = ttl
         self.lock_achieved = False
 
@@ -56,35 +56,36 @@ class EtcdLockManager(object):
     def _test_ownership(self, lock):
         def _on_response(result):
             ids = [self._extract_id(node.key) for node in result.node.children]
-            return (ids[0] == id, result.index)
+            return (ids[0] == lock.id, result.index)
 
-        d = self.client.get(node.path, sorted=True)
+        d = self.client.get(lock.base_path, sorted=True)
         d.addCallback(_on_response)
         return d
 
     def _create_node(self, path, ttl):
-        d = self.client.create(self._abs_path(path), self.id, ttl=ttl)
-        d.addCallback(lambda result: EtcdLock(path, self._extract_id(result.node.key), ttl))
+        abs_path = self._abs_path(path)
+        d = self.client.create(abs_path, self.id, ttl=ttl)
+        d.addCallback(lambda result: EtcdLock(abs_path, self._extract_id(result.node.key), ttl))
         return d
 
     def _refresh_node(self, path, id, ttl):
         node_path = self._abs_path(path, id=id)
         return self.client.set(node_path, prev_nil=False, value=self.id, ttl=ttl).addCallback(lambda result: id)
 
-    def _wait_for_lock(self, id, path, ttl):
-        print "Waiting for lock with id {id}".format(id=id)
+    def _wait_for_lock(self, lock):
+        print "Waiting for lock with id {id}".format(id=lock.id)
         d = defer.Deferred()
 
         def _on_response((owned, index)):
             if owned:
-                d.callback(id)
+                d.callback(lock)
             else:
                 print "Not locked, watching for changes since {index}".format(index=index)
-                d1 = self.client.get(self._abs_path(path), wait=True, wait_index=index, recursive=True)
-                d1.addCallback(lambda result: self._test_ownership(id, path))
+                d1 = self.client.get(lock.base_path, wait=True, wait_index=index, recursive=True)
+                d1.addCallback(lambda result: self._test_ownership(lock))
                 d1.addCallbacks(_on_response, d.errback)
 
-        self._test_ownership(id, path).addCallbacks(_on_response, d.errback)
+        self._test_ownership(lock).addCallbacks(_on_response, d.errback)
 
         return d
 
@@ -94,5 +95,5 @@ class EtcdLockManager(object):
             raise RuntimeError('EtcdLockManager lock paths must be absolute')
 
         d = self._create_node(path, ttl)
-        d.addCallback(self._wait_for_lock, path, ttl)
+        d.addCallback(self._wait_for_lock)
         return d
