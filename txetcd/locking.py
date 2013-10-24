@@ -23,12 +23,43 @@ from txetcd.client import EtcdError
 
 
 class EtcdLock(object):
-    def __init__(self, base_path, id, ttl):
-        self.base_path = base_path
-        self.id = id
-        self.full_path = base_path + '/' + str(id)
+    def __init__(self, client, full_path, manager_id, ttl):
+        paths = full_path.rsplit('/', 1)
+        self.client = client
+        self.base_path = paths[0]
+        self.id = int(paths[1])
+        self.full_path = full_path
+        self.manager_id = manager_id
         self.ttl = ttl
         self.lock_achieved = False
+
+    def _refresh_node(self):
+        return self.client.set(self.full_path, prev_nil=False, value=self.manager_id, ttl=ttl)
+
+    def _test_ownership(self):
+        def _on_response(result):
+            ids = [int(node.key.rsplit('/', 1)[1]) for node in result.node.children]
+            return (ids[0] == self.id, result.index)
+
+        d = self.client.get(self.base_path, sorted=True)
+        d.addCallback(_on_response)
+        return d
+
+    def _wait(self):
+        print "Waiting for lock with id {id}".format(id=self.id)
+        d = defer.Deferred()
+
+        def _on_response((owned, index)):
+            if owned:
+                d.callback(self)
+            else:
+                print "Not locked, watching for changes since {index}".format(index=index)
+                d1 = self.client.get(self.base_path, wait=True, wait_index=index, recursive=True)
+                d1.addCallback(lambda result: self._test_ownership())
+                d1.addCallbacks(_on_response, d.errback)
+
+        self._test_ownership().addCallbacks(_on_response, d.errback)
+        return d
 
 
 class EtcdLockManager(object):
@@ -50,50 +81,16 @@ class EtcdLockManager(object):
         else:
             return self.base_path + path + '/' + str(id)
 
-    def _extract_id(self, path):
-        return int(path.rsplit('/', 1)[1])
+    def _create_lock(self, path, ttl):
+        path = path.rstrip('/')
+        if not path.startswith('/'):
+            return defer.fail(RuntimeError('EtcdLockManager lock paths must be absolute'))
 
-    def _test_ownership(self, lock):
-        def _on_response(result):
-            ids = [self._extract_id(node.key) for node in result.node.children]
-            return (ids[0] == lock.id, result.index)
-
-        d = self.client.get(lock.base_path, sorted=True)
-        d.addCallback(_on_response)
-        return d
-
-    def _create_node(self, path, ttl):
-        abs_path = self._abs_path(path)
-        d = self.client.create(abs_path, self.id, ttl=ttl)
-        d.addCallback(lambda result: EtcdLock(abs_path, self._extract_id(result.node.key), ttl))
-        return d
-
-    def _refresh_node(self, path, id, ttl):
-        node_path = self._abs_path(path, id=id)
-        return self.client.set(node_path, prev_nil=False, value=self.id, ttl=ttl).addCallback(lambda result: id)
-
-    def _wait_for_lock(self, lock):
-        print "Waiting for lock with id {id}".format(id=lock.id)
-        d = defer.Deferred()
-
-        def _on_response((owned, index)):
-            if owned:
-                d.callback(lock)
-            else:
-                print "Not locked, watching for changes since {index}".format(index=index)
-                d1 = self.client.get(lock.base_path, wait=True, wait_index=index, recursive=True)
-                d1.addCallback(lambda result: self._test_ownership(lock))
-                d1.addCallbacks(_on_response, d.errback)
-
-        self._test_ownership(lock).addCallbacks(_on_response, d.errback)
-
+        d = self.client.create(self.base_path + path, self.id, ttl=ttl)
+        d.addCallback(lambda result: EtcdLock(self.client, result.node.key, self.id, ttl))
         return d
 
     def lock(self, path, ttl=60):
-        path = path.rstrip('/')
-        if not path.startswith('/'):
-            raise RuntimeError('EtcdLockManager lock paths must be absolute')
-
-        d = self._create_node(path, ttl)
-        d.addCallback(self._wait_for_lock)
+        d = self._create_lock(path, ttl)
+        d.addCallback(lambda lock: lock._wait())
         return d
