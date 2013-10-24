@@ -23,10 +23,12 @@ from txetcd.client import EtcdError
 
 
 class EtcdLock(object):
-    def __init__(self, path, id):
-        self.path = path
+    def __init__(self, base_path, id, ttl):
+        self.base_path = base_path
         self.id = id
         self.full_path = path + '/' + str(id)
+        self.ttl = ttl
+        self.lock_achieved = False
 
 
 class EtcdLockManager(object):
@@ -51,18 +53,18 @@ class EtcdLockManager(object):
     def _extract_id(self, path):
         return int(path.rsplit('/', 1)[1])
 
-    def _test_ownership(self, id, path):
+    def _test_ownership(self, lock):
         def _on_response(result):
             ids = [self._extract_id(node.key) for node in result.node.children]
             return (ids[0] == id, result.index)
 
-        d = self.client.get(self._abs_path(path), sorted=True)
+        d = self.client.get(node.path, sorted=True)
         d.addCallback(_on_response)
         return d
 
     def _create_node(self, path, ttl):
         d = self.client.create(self._abs_path(path), self.id, ttl=ttl)
-        d.addCallback(lambda result: self._extract_id(result.node.key))
+        d.addCallback(lambda result: EtcdLock(path, self._extract_id(result.node.key), ttl))
         return d
 
     def _refresh_node(self, path, id, ttl):
