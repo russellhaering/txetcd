@@ -162,7 +162,7 @@ class EtcdClient(object):
             'value': 'value',
             'prev_index': 'prevIndex',
             'prev_value': 'prevValue',
-            'prev_exists': 'prevExists',
+            'prev_exist': 'prevExist',
         })
 
         d = self._request('PUT', path, data=data, prefer_leader=True)
