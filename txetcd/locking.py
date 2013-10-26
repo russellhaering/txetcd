@@ -16,10 +16,10 @@ limitations under the License.
 
 import uuid
 
-from twisted.internet import defer
+from twisted.internet import defer, task, reactor
 from twisted.python import log
 
-from txetcd.client import EtcdError
+from txetcd.client import EtcdServerError
 
 
 class EtcdLock(object):
@@ -31,10 +31,38 @@ class EtcdLock(object):
         self.full_path = full_path
         self.manager_id = manager_id
         self.ttl = ttl
-        self.lock_achieved = False
+        self.update_loop = task.LoopingCall(self._refresh_node)
+        self.locked = False
+        self.last_successful_update = reactor.seconds()
+        self._pending_update_deferred = defer.succeed(self)
 
     def _refresh_node(self):
-        return self.client.set(self.full_path, prev_nil=False, value=self.manager_id, ttl=ttl)
+        self._pending_update_deferred = defer.Deferred()
+
+        def _on_success(result):
+            self.last_successful_update = reactor.seconds()
+            self._pending_update_deferred.callback(None)
+
+        def _on_failure(failure):
+            abort = False
+
+            if failure.check(EtcdServerError) and failure.value.code == 100:
+                # The node we tried to update didn't exist, the lock (if we had it) has been lost
+                actually_fail = True
+                abort = True
+            self._pending_update_deferred.callback(None)
+
+            if abort:
+                return failure
+            else:
+                return None
+
+        d = self.client.set(self.full_path, prev_exist=True, value=self.manager_id, ttl=self.ttl)
+        d.addCallbacks(_on_success, _on_failure)
+        return d
+
+    def _remove_node(self):
+        return self.client.delete(self.full_path)
 
     def _test_ownership(self):
         def _on_response(result):
@@ -51,6 +79,7 @@ class EtcdLock(object):
 
         def _on_response((owned, index)):
             if owned:
+                self.locked = True
                 d.callback(self)
             else:
                 print "Not locked, watching for changes since {index}".format(index=index)
@@ -59,6 +88,24 @@ class EtcdLock(object):
                 d1.addCallbacks(_on_response, d.errback)
 
         self._test_ownership().addCallbacks(_on_response, d.errback)
+        return d
+
+    def _start_refresh(self):
+        self.update_loop.start(self.ttl / 3, now=False)
+
+    def _stop_refresh(self):
+        if self.update_loop.running:
+            self.update_loop.stop()
+        return self._pending_update_deferred
+
+    def _set_unlocked(self):
+        self.locked = False
+        return self
+
+    def release(self):
+        d = self._stop_refresh()
+        d.addCallback(lambda result: self._remove_node())
+        d.addCallback(lambda result: self._set_unlocked())
         return d
 
 
@@ -91,6 +138,10 @@ class EtcdLockManager(object):
         return d
 
     def lock(self, path, ttl=60):
+        def _wait(lock):
+            lock._start_refresh()
+            return lock._wait()
+
         d = self._create_lock(path, ttl)
-        d.addCallback(lambda lock: lock._wait())
+        d.addCallback(_wait)
         return d
