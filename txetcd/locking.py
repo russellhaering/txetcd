@@ -56,7 +56,7 @@ class EtcdLock(object):
             else:
                 return None
 
-        d = self.client.set(self.full_path, prev_exist='true', value=self.manager_id, ttl=self.ttl)
+        d = self.client.set(self.full_path, prev_exist=True, value=self.manager_id, ttl=self.ttl)
         d.addCallbacks(_on_success, _on_failure)
         return d
 

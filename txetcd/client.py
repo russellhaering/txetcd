@@ -103,7 +103,7 @@ class EtcdClient(object):
         log.err(failure)
         return failure
 
-    def _format_param_value(self, value):
+    def _format_kwarg(self, key, value):
         if isinstance(value, bool):
             if value:
                 return 'true'
@@ -127,7 +127,7 @@ class EtcdClient(object):
             kwargs['data'] = urlencode(data)
 
         if params:
-            kwargs['params'] = {key:self._format_param_value(value) for key, value in params.iteritems()}
+            kwargs['params'] = params
 
         d = self.http_client.request(method, url, headers=headers, **kwargs)
         d.addErrback(self._log_failure)
@@ -140,7 +140,7 @@ class EtcdClient(object):
     def _build_params(self, params, method_kwargs, param_map):
         for key in param_map.iterkeys():
             if key in method_kwargs:
-                params[param_map[key]] = method_kwargs[key]
+                params[param_map[key]] = self._format_kwarg(key, method_kwargs[key])
 
         return params
 
