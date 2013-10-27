@@ -48,7 +48,6 @@ class EtcdLock(object):
 
             if failure.check(EtcdServerError) and failure.value.code == 100:
                 # The node we tried to update didn't exist, the lock (if we had it) has been lost
-                actually_fail = True
                 abort = True
             self._pending_update_deferred.callback(None)
 
