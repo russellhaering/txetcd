@@ -95,7 +95,7 @@ class EtcdClient(object):
 
     def _construct_response_object(self, obj):
         if 'errorCode' in obj:
-            raise EtcdError(obj)
+            raise EtcdServerError(obj)
 
         return EtcdResponse(obj['index'], EtcdNode.from_response(**obj))
 
