@@ -73,7 +73,6 @@ class EtcdLock(object):
         return d
 
     def _wait(self):
-        print "Waiting for lock with id {id}".format(id=self.id)
         d = defer.Deferred()
 
         def _on_response((owned, index)):
@@ -81,7 +80,6 @@ class EtcdLock(object):
                 self.locked = True
                 d.callback(self)
             else:
-                print "Not locked, watching for changes since {index}".format(index=index)
                 d1 = self.client.get(self.base_path, wait=True, wait_index=index, recursive=True)
                 d1.addCallback(lambda result: self._test_ownership())
                 d1.addCallbacks(_on_response, d.errback)
